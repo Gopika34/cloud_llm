@@ -1,0 +1,7 @@
+python-dotenv
+
+google-genai
+grok
+
+fastapi
+uvicorn
