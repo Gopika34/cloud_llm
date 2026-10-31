@@ -1,3 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment variables
 .env
+.env.*
 
+# ChromaDB
+chroma_db/
 
+# Uploaded documents
+uploads/
