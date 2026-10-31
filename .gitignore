@@ -1,7 +1,12 @@
+
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
+
+# Virtual environments
+venv/
+.venv/
 
 # Environment variables
 .env
@@ -12,3 +17,10 @@ chroma_db/
 
 # Uploaded documents
 uploads/
+
+# IDE
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
