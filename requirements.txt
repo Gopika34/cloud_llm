@@ -1,0 +1,11 @@
+python-dotenv
+
+google-genai
+groq
+
+fastapi
+uvicorn
+
+pymupdf
+chromadb
+sentence-transformers
