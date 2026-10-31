@@ -5,6 +5,7 @@ from app.ai.rag.data_loader import data_processor
 from app.ai.rag.embed import embedding
 from app.ai.rag.vector_store import vector_store
 from app.utils.ids import generate_uuid
+from app.ai.rag.batch_processor import BatchProcessor
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -39,10 +40,21 @@ class RagPipeline:
                 "document": None
             }
 
-        # 3. Generate embeddings for the chunks
+        # 3. Generate embeddings in batches
         chunk_texts = [c["text"] for c in chunks]
-        embeddings = await embedding.embed_chunks(chunk_texts)
 
+        embeddings = await BatchProcessor.process_in_batches(
+            items=chunk_texts,
+            process_batch=embedding.embed_chunks,
+            batch_size=10
+        )
+        
+        logger.info(
+            f"Embedding verification: "
+            f"{len(chunk_texts)} chunks, "
+            f"{len(embeddings)} embeddings"
+        )
+        
         # 4. Construct Document Record
         document_id = generate_uuid()
         ingested_at = datetime.now(timezone.utc).isoformat()

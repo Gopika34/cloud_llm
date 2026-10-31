@@ -100,12 +100,11 @@ class ChatService:
                 print(f"                      Switching to the next backup model in chain...")
                 continue
 
-            yield ChatService._sse({"type": "model", "model": model_name})
-            yield ChatService._sse({"type": "token", "content": first_token})
+            yield first_token
 
             try:
                 async for token in stream:
-                    yield ChatService._sse({"type": "token", "content": token})
+                    yield token
             except Exception as error:
                 # Can't switch models mid-answer, so report the error and stop
                 print(f"[Error] {model_name} failed mid-stream: {error}")
@@ -113,8 +112,6 @@ class ChatService:
                 return
 
             print(f"[Status] Successfully answered by {model_name}!")
-            yield ChatService._sse({"type": "sources", "sources": sources})
-            yield ChatService._sse({"type": "done"})
             return
 
         # If all models in the fallback chain fail, report it in the stream (status 200 is already sent)
