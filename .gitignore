@@ -1,5 +1,26 @@
-.env
-
+# Python
 __pycache__/
+__pycache__
+*.py[cod]
+*.pyo
 
-venv
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.*
+
+__init__.py
+
+# ChromaDB
+chroma_db/
+
+
+# IDE
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

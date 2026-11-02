@@ -1,9 +1,13 @@
 python-dotenv
 
 google-genai
-grok
+groq
 
 fastapi
 uvicorn
-
 python-multipart
+
+pymupdf
+
+motor
+pymongo
