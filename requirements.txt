@@ -11,3 +11,5 @@ pymupdf
 
 motor==3.7.1
 pymongo==4.13.2
+
+numpy
