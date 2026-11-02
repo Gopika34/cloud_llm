@@ -27,6 +27,7 @@ def vector_collection():
 async def connect_to_mongo():
     try:
         logger.info("⏳ Connecting to MongoDB...")
+        print("MONGO_URL loaded:", settings.MONGO_URL[:20] + "..." if settings.MONGO_URL else "MISSING")
         db_instance.client = AsyncIOMotorClient(settings.MONGO_URL)
         
         # THE PING TEST (Crucial for Cloud)
