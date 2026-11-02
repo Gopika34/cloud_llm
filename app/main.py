@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.routes import chat
 from contextlib import asynccontextmanager
 from app.ai.rag.pipeline import rag_pipeline
@@ -30,6 +31,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+CORSMiddleware,
+allow_origins=["http://localhost:5173"],
+allow_credentials=True,
+allow_methods=["GET", "POST"],
+allow_headers=["Content-Type", "Authorization"],
+)
+
+# @app.get("/api/profile")
+# def profile():
+# return {"name": "Ava", "role": "Developer"}
+
 
 @app.get("/")
 def landing_page():

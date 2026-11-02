@@ -1,6 +1,6 @@
-
 # Python
 __pycache__/
+__pycache__
 *.py[cod]
 *.pyo
 
@@ -12,11 +12,11 @@ venv/
 .env
 .env.*
 
+__init__.py
+
 # ChromaDB
 chroma_db/
 
-# Uploaded documents
-uploads/
 
 # IDE
 .vscode/

@@ -4,8 +4,10 @@ import random
 from collections.abc import AsyncIterator
 from app.ai.rag.pipeline import rag_pipeline
 from app.ai.models import models
-from app.ai.prompts.gemini_prompt import RAG_PROMPT_TEMPLATE
-
+from app.ai.prompts.gemini_prompt import (
+    SYSTEM_PROMPT,
+    RAG_PROMPT_TEMPLATE
+)
 
 NO_CONTEXT_MESSAGE = "I couldn't find anything about that in that document."
 
@@ -78,8 +80,11 @@ class ChatService:
 
         # 2. Build the RAG prompt from the retrieved context
         context, sources = rag_pipeline.build_context(retrieval["results"])
-        prompt = RAG_PROMPT_TEMPLATE.format(context = context, question = user_prompt)
-
+        prompt = RAG_PROMPT_TEMPLATE.format(
+            system_prompt=SYSTEM_PROMPT,
+            context=context,
+            question=user_prompt
+        )
         print("\n" + "=" * 50)
         print("Starting LLM Request with Fallback & Retry")
         print("=" * 50)
