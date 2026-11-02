@@ -7,4 +7,9 @@ class Settings:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     
+    MONGO_URL = os.getenv("MONGO_URL")
+    DB_NAME = os.getenv("DB_NAME", "cloud_llm")
+    MONGO_DB_NAME = DB_NAME
+
 settings = Settings()
+

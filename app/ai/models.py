@@ -16,7 +16,7 @@ class Models:
         self.gemini_client = genai.Client(api_key = settings.GEMINI_API_KEY)
         self.groq_client = AsyncGroq(api_key = settings.GROQ_API_KEY)
 
-    async def stream_gemini(self, prompt: str, model_name: str = "gemini-2.5-flash") -> AsyncIterator[str]:
+    async def stream_gemini(self, prompt: str, model_name: str = "gemini-3.5-flash") -> AsyncIterator[str]:
         """
         Streams Google Gemini's response, yielding text pieces as they arrive.
         Any API errors are raised so that retry and fallback logic can handle them.

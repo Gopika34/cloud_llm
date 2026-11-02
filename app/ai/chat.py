@@ -7,7 +7,7 @@ from app.ai.models import models
 from app.ai.prompts.gemini_prompt import RAG_PROMPT_TEMPLATE
 
 
-NO_CONTEXT_MESSAGE = "I couldn't find anything about that in the Virat Kohli document."
+NO_CONTEXT_MESSAGE = "I couldn't find anything about that in that document."
 
 
 class ChatService:

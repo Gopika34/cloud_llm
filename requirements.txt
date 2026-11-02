@@ -7,5 +7,6 @@ fastapi
 uvicorn
 
 pymupdf
-chromadb
-sentence-transformers
+
+motor
+pymongo

@@ -1,67 +1,39 @@
-import asyncio
-from pathlib import Path
-import chromadb
+import logging
+import numpy as np
+from app.db.mongodb import get_collection
 from app.utils.ids import generate_uuid
 
-# ChromaDB folder located in the project root directory
-ROOT_DIR = Path(__file__).resolve().parents[3]
-CHROMA_DIR = ROOT_DIR / "chroma_db"
-
-client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+logger = logging.getLogger("uvicorn.error")
 
 
 class VectorStore:
     def __init__(self):
+        self._doc_collection_name = "documents"
+        self._chunk_collection_name = "chunks"
 
-        self.client = client
+    @property
+    def documents_collection(self):
+        return get_collection(self._doc_collection_name)
 
-        self.documents_collection = self.client.get_or_create_collection(
-            name="documents",
-            metadata={"description": "Collection tracking ingested documents"}
-        )
-
-        self.chunks_collection = self.client.get_or_create_collection(
-            name="chunks",
-            metadata={"description": "Collection containing chunk text, embeddings, and metadata"}
-        )
+    @property
+    def chunks_collection(self):
+        return get_collection(self._chunk_collection_name)
 
     async def get_document_by_hash(self, file_hash: str) -> dict | None:
-        def _get():
-
-            results = self.documents_collection.get(
-                where={"file_hash": file_hash},
-                limit=1
-            )
-
-            if results and results.get("ids") and len(results["ids"]) > 0:
-                doc_id = results["ids"][0]
-                metadata = results["metadatas"][0] if results.get("metadatas") else {}
-                return {
-                    "document_id": doc_id,
-                    **metadata
-                }
-
-            return None
-
-        return await asyncio.to_thread(_get)
+        """Finds an existing document record by its SHA-256 file hash."""
+        doc = await self.documents_collection.find_one({"file_hash": file_hash})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return doc
+        return None
 
     async def get_document_by_id(self, document_id: str) -> dict | None:
-        def _get():
-
-            results = self.documents_collection.get(
-                ids=[document_id],
-                limit=1
-            )
-
-            if results and results.get("ids") and len(results["ids"]) > 0:
-                metadata = results["metadatas"][0] if results.get("metadatas") else {}
-                return {
-                    "document_id": document_id,
-                    **metadata
-                }
-            return None
-
-        return await asyncio.to_thread(_get)
+        """Finds an existing document record by document_id."""
+        doc = await self.documents_collection.find_one({"document_id": document_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return doc
+        return None
 
     async def insert(
         self,
@@ -69,46 +41,38 @@ class VectorStore:
         chunks: list[dict],
         embeddings: list[list[float]]
     ) -> None:
-        def _insert():
+        """Stores document metadata and chunks with their embeddings into MongoDB."""
+        # 1. Upsert document record
+        await self.documents_collection.update_one(
+            {"document_id": document_record["document_id"]},
+            {"$set": document_record},
+            upsert=True
+        )
 
-            # 1. Insert Document Record
-            self.documents_collection.add(
-                ids=[document_record["document_id"]],
-                documents=[document_record["filename"]],
-                metadatas=[{
+        # 2. Insert Chunks with embeddings and metadata
+        if chunks and embeddings:
+            chunk_docs = []
+            for chunk, emb in zip(chunks, embeddings):
+                chunk_id = chunk.get("id") or generate_uuid()
+                chunk_docs.append({
+                    "chunk_id": chunk_id,
                     "document_id": document_record["document_id"],
                     "filename": document_record["filename"],
-                    "file_hash": document_record["file_hash"],
-                    "file_size_bytes": int(document_record["file_size_bytes"]),
-                    "uploaded_at": str(document_record["uploaded_at"]),
-                    "ingested_at": str(document_record["ingested_at"]),
-                    "ingestion_status": str(document_record["ingestion_status"]),
-                    "chunk_count": int(document_record["chunk_count"]),
-                    "chunking_version": str(document_record["chunking_version"]),
-                    "embedding_model": str(document_record["embedding_model"]),
-                }]
-            )
+                    "text": chunk["text"],
+                    "embedding": emb,
+                    "metadata": {
+                        "document_id": document_record["document_id"],
+                        "filename": document_record["filename"],
+                        "chunk_index": int(chunk["chunk_index"]),
+                        "page_number": int(chunk["page_number"])
+                    }
+                })
 
-            # 2. Insert Chunks with embeddings and metadata
-            if chunks and embeddings:
-                
-                chunk_ids = [chunk.get("id") or generate_uuid() for chunk in chunks]
-                chunk_docs = [chunk["text"] for chunk in chunks]
-                chunk_metas = [{
-                    "document_id": document_record["document_id"],
-                    "filename": document_record["filename"],
-                    "chunk_index": int(chunk["chunk_index"]),
-                    "page_number": int(chunk["page_number"])
-                } for chunk in chunks]
-
-                self.chunks_collection.add(
-                    ids=chunk_ids,
-                    documents=chunk_docs,
-                    embeddings=embeddings,
-                    metadatas=chunk_metas
+            if chunk_docs:
+                await self.chunks_collection.insert_many(chunk_docs)
+                logger.info(
+                    f"Stored {len(chunk_docs)} chunks for document '{document_record['filename']}' in MongoDB."
                 )
-
-        await asyncio.to_thread(_insert)
 
     async def retrieve(
         self,
@@ -116,43 +80,95 @@ class VectorStore:
         n_results: int = 5,
         document_id: str | None = None
     ) -> list[dict]:
-
-        def _retrieve():
-
-            kwargs = {
-                "query_embeddings": [query_embedding],
-                "n_results": n_results
+        """
+        Retrieves top similar chunks for a query embedding using MongoDB Atlas $vectorSearch,
+        falling back to in-memory cosine similarity if the Atlas Vector Search index is not yet configured.
+        """
+        # Attempt MongoDB Atlas $vectorSearch
+        try:
+            vector_search_stage = {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": max(n_results * 10, 50),
+                    "limit": n_results
+                }
             }
 
             if document_id:
-                kwargs["where"] = {"document_id": document_id}
+                vector_search_stage["$vectorSearch"]["filter"] = {"document_id": document_id}
 
-            results = self.chunks_collection.query(**kwargs)
+            pipeline = [
+                vector_search_stage,
+                {
+                    "$project": {
+                        "_id": 1,
+                        "chunk_id": 1,
+                        "text": 1,
+                        "metadata": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                }
+            ]
 
-            formatted_results = []
-            if results and results.get("ids") and len(results["ids"]) > 0:
-                ids = results["ids"][0]
-                docs = results.get("documents", [[]])[0]
-                metas = results.get("metadatas", [[]])[0]
-                distances = (
-                    results.get("distances", [[]])[0]
-                    if "distances" in results and results["distances"]
-                    else [None] * len(ids)
-                )
+            cursor = self.chunks_collection.aggregate(pipeline)
+            raw_results = await cursor.to_list(length=n_results)
 
-                for chunk_id, doc, meta, dist in zip(ids, docs, metas, distances):
+            if raw_results:
+                formatted_results = []
+                for item in raw_results:
                     formatted_results.append({
-                        "id": chunk_id,
-                        "document": doc,
-                        "metadata": meta,
-                        "distance": dist
+                        "id": item.get("chunk_id") or str(item.get("_id")),
+                        "document": item.get("text", ""),
+                        "metadata": item.get("metadata", {}),
+                        "distance": 1.0 - float(item.get("score", 1.0))
                     })
+                return formatted_results
 
-            return formatted_results
+        except Exception as e:
+            logger.warning(
+                f"Atlas $vectorSearch failed or index not found: {e}. "
+                f"Falling back to in-memory cosine similarity search."
+            )
 
-        return await asyncio.to_thread(_retrieve)
+        # Fallback: In-memory cosine similarity search across chunks in MongoDB
+        query = {"document_id": document_id} if document_id else {}
+        cursor = self.chunks_collection.find(query)
+        all_chunks = await cursor.to_list(length=None)
+
+        if not all_chunks:
+            return []
+
+        q_vec = np.array(query_embedding, dtype=np.float32)
+        q_norm = np.linalg.norm(q_vec)
+
+        scored_chunks = []
+        for chunk in all_chunks:
+            emb = chunk.get("embedding")
+            if not emb:
+                continue
+            c_vec = np.array(emb, dtype=np.float32)
+            c_norm = np.linalg.norm(c_vec)
+            if q_norm == 0 or c_norm == 0:
+                sim = 0.0
+            else:
+                sim = float(np.dot(q_vec, c_vec) / (q_norm * c_norm))
+            scored_chunks.append((sim, chunk))
+
+        scored_chunks.sort(key=lambda x: x[0], reverse=True)
+        top_chunks = scored_chunks[:n_results]
+
+        formatted_results = []
+        for sim, chunk in top_chunks:
+            formatted_results.append({
+                "id": chunk.get("chunk_id") or str(chunk.get("_id")),
+                "document": chunk.get("text", ""),
+                "metadata": chunk.get("metadata", {}),
+                "distance": 1.0 - sim
+            })
+
+        return formatted_results
 
 
 vector_store = VectorStore()
-
-

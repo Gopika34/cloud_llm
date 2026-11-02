@@ -46,7 +46,7 @@ class RagPipeline:
         embeddings = await BatchProcessor.process_in_batches(
             items=chunk_texts,
             process_batch=embedding.embed_chunks,
-            batch_size=10
+            batch_size=5
         )
         
         logger.info(
@@ -71,7 +71,7 @@ class RagPipeline:
             "embedding_model": embedding.model_name
         }
 
-        # 5. Insert into ChromaDB
+        # 5. Insert into MongoDB Vector Store
         await vector_store.insert(
             document_record=document_record,
             chunks=chunks,
