@@ -9,5 +9,5 @@ python-multipart
 
 pymupdf
 
-motor
-pymongo
+motor==3.7.1
+pymongo==4.13.2
